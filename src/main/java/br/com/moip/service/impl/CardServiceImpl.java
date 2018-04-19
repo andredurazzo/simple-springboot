@@ -5,8 +5,10 @@ import org.springframework.stereotype.Service;
 
 import br.com.moip.domain.Card;
 import br.com.moip.exception.BusinessException;
+import br.com.moip.exception.CreditCardException;
 import br.com.moip.repository.CardRepository;
 import br.com.moip.service.ICardService;
+import br.com.moip.utils.CreditCardUtils;
 
 @Service
 public class CardServiceImpl implements ICardService {
@@ -15,9 +17,14 @@ public class CardServiceImpl implements ICardService {
 	CardRepository cardRepository;
 
 	@Override
-	public Card addCreditCard(Card card) throws BusinessException {
+	public Card addCreditCard(Card card) throws BusinessException, CreditCardException {
+
 		try {
-			return cardRepository.save(card);
+			if (CreditCardUtils.validCC(card.getCardNumber())) {
+				return cardRepository.save(card);
+			} else {
+				throw new CreditCardException("Invalid Credit card!");
+			}
 		} catch (Exception e) {
 			throw new BusinessException(e.getMessage());
 		}

@@ -19,6 +19,7 @@ public class CreditCardUtils {
 	 */
 	public static boolean validCC(String number) throws CreditCardException {
 		int CardID;
+		number = number.replaceAll("\\D", "");
 		if ((CardID = getCardID(number)) != -1)
 			return validCCNumber(number);
 		return false;

@@ -45,7 +45,7 @@ public class PurchaseServiceImpl implements IPurchaseService {
 
 	@Autowired
 	PurchaseRepository purchaseRepository;
-	
+
 	@Autowired
 	IClientService clientService;
 
@@ -54,36 +54,22 @@ public class PurchaseServiceImpl implements IPurchaseService {
 
 		try {
 			Future<Buyer> buyerF = this.asyncSaveBuyer(purchase.getBuyer());
-			Future<Card> cardF = null;
-			
+
 			Future<ClientResponse> clientF = this.asyncFindClient(purchase.getClient().getId());
-			if (null != purchase.getPayment() && purchase.getPayment().getType().equals(PAYMENT_TYPE.BOLETO)) {
+			if (isBoleto(purchase)) {
 				purchase.getPayment().setNumberBoleto(BoletoGenerate.generateBoleto());
 			} else {
-				if (CreditCardUtils.validCC(purchase.getCard().getCardNumber())) {
-					cardF = this.asyncSaveCard(purchase.getCard());
-					if (!cardF.isDone()) {
-						Thread.sleep(2);
-					}
-					purchase.getPayment().setCard(cardF.get());
-				} else {
-					throw new CreditCardException("Invalid Credit card!");
-				}
+				saveCreditCard(purchase.getCard());
 			}
 			purchase.getPayment().setStatus(PAYMENT_STATUS.AWAITING_PAYMENT);
 			Future<Payment> paymentF = this.asyncSavePayment(purchase.getPayment());
 			while (!buyerF.isDone() && !paymentF.isDone() && !clientF.isDone()) {
 				Thread.sleep(2);
 			}
-			
-			//purchase.setClient(clientF.get());
 			purchase.setBuyer(buyerF.get());
 			purchase.setPayment(paymentF.get());
-			
-			
+
 			Future<Purchase> purchaseF = this.asyncSavePurchase(this.toRepoPurchase(purchase));
-			while(!purchaseF.isDone())
-				Thread.sleep(2);
 			return this.toPurchaseResponse(purchaseF.get());
 
 		} catch (InterruptedException e) {
@@ -95,6 +81,17 @@ public class PurchaseServiceImpl implements IPurchaseService {
 		} catch (Exception e) {
 			throw new BusinessException(e);
 		}
+	}
+
+	private void saveCreditCard(Card card)
+			throws CreditCardException, InterruptedException, ExecutionException, BusinessException {
+
+		card = cardService.addCreditCard(card);
+
+	}
+
+	private boolean isBoleto(PurchaseRequest purchase) {
+		return null != purchase.getPayment() && purchase.getPayment().getType().equals(PAYMENT_TYPE.BOLETO);
 	}
 
 	@Override
@@ -134,9 +131,9 @@ public class PurchaseServiceImpl implements IPurchaseService {
 	@Async
 	private Future<Buyer> asyncSaveBuyer(Buyer buyer) {
 		Buyer result = null;
-		try {	
+		try {
 			result = buyerService.findBuyer(buyer);
-			if(null == result){
+			if (null == result) {
 				result = buyerService.addBuyer(buyer);
 			}
 			return new AsyncResult<Buyer>(result);
@@ -159,35 +156,25 @@ public class PurchaseServiceImpl implements IPurchaseService {
 	}
 
 	@Async
-	private Future<Card> asyncSaveCard(Card card) {
-		Card result = null;
+	private Future<ClientResponse> asyncFindClient(Long id) {
 
-		try {
-			return new AsyncResult<Card>(cardService.addCreditCard(card));
-		} catch (BusinessException e) {
-			return new AsyncResult<Card>(result);
-		}
-	}
-	
-	@Async
-	private Future<ClientResponse> asyncFindClient(Long id){
-		
 		try {
 			return new AsyncResult<ClientResponse>(clientService.findClient(id));
 		} catch (BusinessException e) {
 			return new AsyncResult<ClientResponse>(null);
-		} catch(Exception e) {
+		} catch (Exception e) {
 			return new AsyncResult<ClientResponse>(null);
 		}
 	}
+
 	@Async
-	private Future<Purchase> asyncSavePurchase(Purchase purchase){
+	private Future<Purchase> asyncSavePurchase(Purchase purchase) {
 		try {
 			return new AsyncResult<Purchase>(purchaseRepository.save(purchase));
 		} catch (Exception e) {
 			return new AsyncResult<Purchase>(null);
 		}
-		
+
 	}
 
 }
